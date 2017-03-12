@@ -1,0 +1,6 @@
+[submodule "asio"]
+	path = asio
+	url = https://github.com/ayoubserti/asio.git
+[submodule "node-headers"]
+	path = node-headers
+	url = https://github.com/ayoubserti/node-headers.git
