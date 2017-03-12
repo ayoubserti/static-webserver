@@ -33,9 +33,6 @@ char* compress(const char* in, size_t len,size_t& out) {
 	defstream.avail_out = out; // size of output
 	defstream.next_out = (Bytef *)res; // output char array
 
-	
-	//deflateInit2(&defstream, Z_BEST_COMPRESSION, Z_DEFLATED, 16 + MAX_WBITS, 3, Z_HUFFMAN_ONLY);
-
 	deflateInit(&defstream, Z_BEST_COMPRESSION);
 	deflate(&defstream, Z_FINISH);
 	deflateEnd(&defstream);
@@ -98,22 +95,24 @@ NAN_METHOD(Forward)
 		asocket->assign(asio::ip::tcp::v6(), socketDup,ec);
 		gIOService->dispatch([asocket]() {
 			//executed in static-server thread
-			std::string* strRes =new std::string( "HTTP/1.1 200 OK\nConnection: Closed\nContent-Type:text/plain\nContent-Encoding:deflate\nContent-Length:"); 
+			std::string* strRes = new std::string( "HTTP/1.1 200 OK\nConnection: Closed\nContent-Type:text/plain\nContent-Encoding:deflate\nContent-Length:"); 
 			//"26\n\n Hello From static - server\n";
 			char * body = " Hello From static - server\n";
 			size_t compsize = 50;
 			char * compressed = compress(body, strlen(body), compsize);
 			*strRes += std::to_string((long long)compsize);
 			*strRes += "\n\n";
-			std::string* strbody = new std::string(compressed, compsize);
-			strRes->append(strbody->begin(), strbody->end());
-
-			asocket->async_send(asio::buffer(strRes->c_str(),strRes->size()),
-				[asocket,compressed](const asio::error_code& ec, std::size_t len) {
+			
+			strRes->append(compressed, compressed+compsize);
+			delete compressed;
+			asocket->async_send(asio::buffer(strRes->c_str(), strRes->size()),
+				[asocket,compressed,strRes](const asio::error_code& ec, std::size_t len) {
 				std::cout << "From Asio Thread" << std::endl;
 				//shutdown socket after write
-				asocket->shutdown(asio::socket_base::shutdown_both);
+				asio::error_code sh_ec;
+				asocket->shutdown(asio::socket_base::shutdown_both,sh_ec);
 				delete asocket;
+				delete strRes;
 			});
 
 		});
