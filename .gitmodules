@@ -5,3 +5,6 @@
 	path = node-headers
 	url = https://github.com/ayoubserti/node-headers.git
 	branch = v6.5.0
+[submodule "http-parser"]
+	path = http-parser
+	url = https://github.com/ayoubserti/http-parser.git
