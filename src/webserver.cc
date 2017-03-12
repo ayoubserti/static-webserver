@@ -79,6 +79,12 @@ NAN_METHOD(Forward)
 	{
 		v8::Local<v8::Object> obj = Nan::To<v8::Object>(info[0]).ToLocalChecked();
 		
+		v8::Local<v8::String> data = Nan::To< v8::String>(info[1]).ToLocalChecked();
+
+		v8::String::Utf8Value utfData(data);
+		//i know `std::string*` is a bad idea ;(
+		std::string* strData = new std::string(*utfData, utfData.length());
+
 		node::TCPWrap * mirror = reinterpret_cast<node::TCPWrap *>(Nan::GetInternalFieldPointer(obj, 0));
 
 		uv_tcp_t* handle = mirror->UVHandle();
@@ -93,26 +99,30 @@ NAN_METHOD(Forward)
 		TcpSocket* asocket = new TcpSocket(*gIOService);
 		asio::error_code ec;
 		asocket->assign(asio::ip::tcp::v6(), socketDup,ec);
-		gIOService->dispatch([asocket]() {
+		gIOService->dispatch([asocket, strData]() {
 			//executed in static-server thread
-			std::string* strRes = new std::string( "HTTP/1.1 200 OK\nConnection: Closed\nContent-Type:text/plain\nContent-Encoding:deflate\nContent-Length:"); 
-			//"26\n\n Hello From static - server\n";
-			char * body = " Hello From static - server\n";
-			size_t compsize = 50;
-			char * compressed = compress(body, strlen(body), compsize);
-			*strRes += std::to_string((long long)compsize);
-			*strRes += "\n\n";
 			
-			strRes->append(compressed, compressed+compsize);
-			delete compressed;
-			asocket->async_send(asio::buffer(strRes->c_str(), strRes->size()),
-				[asocket,compressed,strRes](const asio::error_code& ec, std::size_t len) {
+			HTTPResponse response;
+			response.set_header("Content-Type", "text/plain");
+			response.set_status(HTTP_STATUS_OK);
+			response.set_header("Connection", "Closed");
+			response.set_header("Content-Encoding", "deflate");
+			
+			size_t compsize = strData->size() * (1.5);
+			char * compressed = compress(strData->c_str(), strData->size(), compsize);
+			
+			response.set_header("Content-Lenght", compsize);
+			
+			//send headers sync
+			asocket->send(asio::buffer(response.stringify()));
+			asocket->async_send(asio::buffer(compressed, compsize),
+				[asocket,compressed](const asio::error_code& ec, std::size_t len) {
 				std::cout << "From Asio Thread" << std::endl;
 				//shutdown socket after write
 				asio::error_code sh_ec;
 				asocket->shutdown(asio::socket_base::shutdown_both,sh_ec);
 				delete asocket;
-				delete strRes;
+				delete compressed;
 			});
 
 		});
