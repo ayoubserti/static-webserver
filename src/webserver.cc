@@ -9,6 +9,41 @@
 #define  ASIO_DISABLE_IOCP 1
 #define  ASIO_STANDALONE 1
 #include "asio.hpp"
+
+
+#include <zconf.h>
+#include <zlib.h>
+
+#include <string>
+
+
+
+char* compress(const char* in, size_t len,size_t& out) {
+
+
+	char* res = new char[out];
+	// zlib struct
+	z_stream defstream;
+	defstream.zalloc = Z_NULL;
+	defstream.zfree = Z_NULL;
+	defstream.opaque = Z_NULL;
+	// setup "a" as the input and "b" as the compressed output
+	defstream.avail_in = len; // size of input, string + terminator
+	defstream.next_in = (Bytef *)in; // input char array
+	defstream.avail_out = out; // size of output
+	defstream.next_out = (Bytef *)res; // output char array
+
+	
+	//deflateInit2(&defstream, Z_BEST_COMPRESSION, Z_DEFLATED, 16 + MAX_WBITS, 3, Z_HUFFMAN_ONLY);
+
+	deflateInit(&defstream, Z_BEST_COMPRESSION);
+	deflate(&defstream, Z_FINISH);
+	deflateEnd(&defstream);
+	out = defstream.total_out;
+	
+	return res;
+}
+
 #ifdef _WIN32
 #include "Windows.h"
 const DWORD MS_VC_EXCEPTION = 0x406D1388;
@@ -63,9 +98,18 @@ NAN_METHOD(Forward)
 		asocket->assign(asio::ip::tcp::v6(), socketDup,ec);
 		gIOService->dispatch([asocket]() {
 			//executed in static-server thread
+			std::string* strRes =new std::string( "HTTP/1.1 200 OK\nConnection: Closed\nContent-Type:text/plain\nContent-Encoding:deflate\nContent-Length:"); 
+			//"26\n\n Hello From static - server\n";
+			char * body = " Hello From static - server\n";
+			size_t compsize = 50;
+			char * compressed = compress(body, strlen(body), compsize);
+			*strRes += std::to_string((long long)compsize);
+			*strRes += "\n\n";
+			std::string* strbody = new std::string(compressed, compsize);
+			strRes->append(strbody->begin(), strbody->end());
 
-			asocket->async_send(asio::buffer("HTTP/1.1 200 OK\nConnection: Closed\n Content-Type:text/plain\nContent-Length: 26\n\n Hello From static-server\n"),
-				[asocket](const asio::error_code& ec, std::size_t len) {
+			asocket->async_send(asio::buffer(strRes->c_str(),strRes->size()),
+				[asocket,compressed](const asio::error_code& ec, std::size_t len) {
 				std::cout << "From Asio Thread" << std::endl;
 				//shutdown socket after write
 				asocket->shutdown(asio::socket_base::shutdown_both);
