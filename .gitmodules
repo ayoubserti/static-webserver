@@ -4,3 +4,4 @@
 [submodule "node-headers"]
 	path = node-headers
 	url = https://github.com/ayoubserti/node-headers.git
+	branch = v6.5.0
