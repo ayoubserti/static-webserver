@@ -37,7 +37,7 @@ char* compress(const char* in, size_t len,size_t& out) {
 	deflate(&defstream, Z_FINISH);
 	deflateEnd(&defstream);
 	out = defstream.total_out;
-	
+
 	return res;
 }
 
@@ -63,7 +63,7 @@ asio::io_service* gIOService;
 
 void launcher(asio::io_service& io_service) {
 
-	
+
 	asio::io_service::work dummy(io_service);
 
 	io_service.run();
@@ -78,7 +78,7 @@ NAN_METHOD(Forward)
 	if (info.Length() > 0)
 	{
 		v8::Local<v8::Object> obj = Nan::To<v8::Object>(info[0]).ToLocalChecked();
-		
+
 		v8::Local<v8::String> data = Nan::To< v8::String>(info[1]).ToLocalChecked();
 
 		v8::String::Utf8Value utfData(data);
@@ -88,31 +88,36 @@ NAN_METHOD(Forward)
 		node::TCPWrap * mirror = reinterpret_cast<node::TCPWrap *>(Nan::GetInternalFieldPointer(obj, 0));
 
 		uv_tcp_t* handle = mirror->UVHandle();
-		
+
 		TcpSocket::native_handle_type sock;
+		uv_os_fd_t sock1;
+		sock = uv_fileno((uv_handle_t*)handle,&sock1);
+		std::cout << sock1 << std::endl;
+		sock1 = dup(sock1);
 #if WIN32
-		sock = handle->socket;
 		WSAPROTOCOL_INFO pi;
 		WSADuplicateSocket(sock, GetCurrentProcessId(), &pi);
 		SOCKET socketDup = WSASocket(pi.iAddressFamily/*AF_INET*/, pi.iSocketType/*SOCK_STREAM*/,
 			pi.iProtocol/*IPPROTO_TCP*/, &pi, 0, 0);
+#endif
 		TcpSocket* asocket = new TcpSocket(*gIOService);
 		asio::error_code ec;
-		asocket->assign(asio::ip::tcp::v6(), socketDup,ec);
+		asocket->assign(asio::ip::tcp::v4(), sock1,ec);
+		std::cout << ec.message() << std::endl;
 		gIOService->dispatch([asocket, strData]() {
 			//executed in static-server thread
-			
+
 			HTTPResponse response;
 			response.set_header("Content-Type", "text/plain");
 			response.set_status(HTTP_STATUS_OK);
 			response.set_header("Connection", "Closed");
 			response.set_header("Content-Encoding", "deflate");
-			
+
 			size_t compsize = strData->size() * (1.5);
 			char * compressed = compress(strData->c_str(), strData->size(), compsize);
-			
+
 			response.set_header("Content-Lenght", compsize);
-			
+
 			//send headers sync
 			asocket->send(asio::buffer(response.stringify()));
 			asocket->async_send(asio::buffer(compressed, compsize),
@@ -127,14 +132,14 @@ NAN_METHOD(Forward)
 
 		});
 
-		
-		
 
 
-#endif 
 
-			
-		
+
+
+
+
+
 	}
 }
 
@@ -142,16 +147,16 @@ NAN_MODULE_INIT(Init) {
 	gIOService = new asio::io_service();
 
 	std::thread asioWorker(launcher, std::ref(*gIOService));
-	
+
 #if WIN32 && _DEBUG
 	THREADNAME_INFO info;
 	info.dwType = 0x1000;
 	info.szName = "static-server";
 	info.dwThreadID = ::GetThreadId(static_cast<HANDLE>(asioWorker.native_handle()));
 	info.dwFlags = 0;
-#pragma warning(push)  
-#pragma warning(disable: 6320 6322)  
-	
+#pragma warning(push)
+#pragma warning(disable: 6320 6322)
+
 	try
 	{
 		RaiseException(MS_VC_EXCEPTION, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info);
@@ -159,10 +164,10 @@ NAN_MODULE_INIT(Init) {
 	catch (...)
 	{
 	}
-#pragma warning(pop)  
+#pragma warning(pop)
 #endif
 	asioWorker.detach();
-	
+
  Nan::Set(target,Nan::New<v8::String>("forward").ToLocalChecked(),Nan::GetFunction(
       Nan::New<v8::FunctionTemplate>(Forward)).ToLocalChecked());
 }
