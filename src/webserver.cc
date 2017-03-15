@@ -90,34 +90,42 @@ NAN_METHOD(Forward)
 		uv_tcp_t* handle = mirror->UVHandle();
 		
 		TcpSocket::native_handle_type sock;
+		
 #if WIN32
-		sock = handle->socket;
+		TcpSocket::native_handle_type sock2;
+		sock2 = handle->socket;
 		WSAPROTOCOL_INFO pi;
-		WSADuplicateSocket(sock, GetCurrentProcessId(), &pi);
-		SOCKET socketDup = WSASocket(pi.iAddressFamily/*AF_INET*/, pi.iSocketType/*SOCK_STREAM*/,
+		WSADuplicateSocket(sock2, GetCurrentProcessId(), &pi);
+		sock = WSASocket(pi.iAddressFamily/*AF_INET*/, pi.iSocketType/*SOCK_STREAM*/,
 			pi.iProtocol/*IPPROTO_TCP*/, &pi, 0, 0);
+#else
+		uv_os_fd_t sock1;
+		uv_fileno((uv_handle_t*)handle,&sock1);		
+		sock = dup(sock1);
+#endif
 		TcpSocket* asocket = new TcpSocket(*gIOService);
 		asio::error_code ec;
-		asocket->assign(asio::ip::tcp::v6(), socketDup,ec);
+		asocket->assign(asio::ip::tcp::v4(), sock,ec);
+		std::cout << ec.message() << std::endl;
 		gIOService->dispatch([asocket, strData]() {
 			//executed in static-server thread
-			
+
 			HTTPResponse response;
 			response.set_header("Content-Type", "text/plain");
 			response.set_status(HTTP_STATUS_OK);
 			response.set_header("Connection", "Closed");
 			response.set_header("Content-Encoding", "deflate");
-			
+
 			size_t compsize = strData->size() * (1.5);
 			char * compressed = compress(strData->c_str(), strData->size(), compsize);
-			
+
 			response.set_header("Content-Lenght", compsize);
-			
+
 			//send headers sync
 			asocket->send(asio::buffer(response.stringify()));
 			asocket->async_send(asio::buffer(compressed, compsize),
 				[asocket,compressed](const asio::error_code& ec, std::size_t len) {
-				std::cout << "From Asio Thread" << std::endl;
+				
 				//shutdown socket after write
 				asio::error_code sh_ec;
 				asocket->shutdown(asio::socket_base::shutdown_both,sh_ec);
@@ -126,15 +134,6 @@ NAN_METHOD(Forward)
 			});
 
 		});
-
-		
-		
-
-
-#endif 
-
-			
-		
 	}
 }
 
