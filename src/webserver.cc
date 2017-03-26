@@ -16,7 +16,80 @@
 
 #include <string>
 
+#ifdef _WIN32
+#include "Windows.h"
+const DWORD MS_VC_EXCEPTION = 0x406D1388;
 
+#pragma pack(push,8)
+typedef struct tagTHREADNAME_INFO
+{
+	DWORD dwType; // Must be 0x1000.
+	LPCSTR szName; // Pointer to name (in user addr space).
+	DWORD dwThreadID; // Thread ID (-1=caller thread).
+	DWORD dwFlags; // Reserved for future use, must be zero.
+} THREADNAME_INFO;
+#pragma pack(pop)
+
+#endif
+
+WebServer::WebServer()
+{
+	
+}
+
+WebServer* WebServer::sInstance = nullptr;
+
+WebServer& WebServer::Get()
+{
+	if (sInstance == nullptr)
+	{
+		sInstance = new WebServer();
+	}
+	return *sInstance;
+}
+
+asio::io_service& WebServer::GetIoService()
+{
+	return io_service_;
+}
+
+void WebServer::thread_work(WebServer& webServer)
+{
+
+	asio::io_service::work dummy(webServer.io_service_); //for keeping thread alive
+
+	webServer.io_service_.run();
+}
+
+void WebServer::start()
+{
+	if (!started_)
+	{
+		std::thread worker(&WebServer::thread_work,std::ref(*this));
+
+#if WIN32 && _DEBUG
+		THREADNAME_INFO info;
+		info.dwType = 0x1000;
+		info.szName = "static-server";
+		info.dwThreadID = ::GetThreadId(static_cast<HANDLE>(worker.native_handle()));
+		info.dwFlags = 0;
+#pragma warning(push)  
+#pragma warning(disable: 6320 6322)  
+
+		try
+		{
+			RaiseException(MS_VC_EXCEPTION, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info);
+		}
+		catch (...)
+		{
+		}
+#pragma warning(pop)  
+#endif
+		worker.detach();
+		started_ = true;
+	}
+	
+}
 
 char* compress(const char* in, size_t len,size_t& out) {
 
@@ -41,40 +114,10 @@ char* compress(const char* in, size_t len,size_t& out) {
 	return res;
 }
 
-#ifdef _WIN32
-#include "Windows.h"
-const DWORD MS_VC_EXCEPTION = 0x406D1388;
-
-#pragma pack(push,8)
-typedef struct tagTHREADNAME_INFO
-{
-	DWORD dwType; // Must be 0x1000.
-	LPCSTR szName; // Pointer to name (in user addr space).
-	DWORD dwThreadID; // Thread ID (-1=caller thread).
-	DWORD dwFlags; // Reserved for future use, must be zero.
-} THREADNAME_INFO;
-#pragma pack(pop)
-
-#endif
-
-using TcpSocket = asio::ip::tcp::socket;
-
-asio::io_service* gIOService;
-
-void launcher(asio::io_service& io_service) {
-
-	
-	asio::io_service::work dummy(io_service);
-
-	io_service.run();
-};
-
-
-
-
 
 NAN_METHOD(Forward)
 {
+	
 	if (info.Length() > 0)
 	{
 		v8::Local<v8::Object> obj = Nan::To<v8::Object>(info[0]).ToLocalChecked();
@@ -103,11 +146,12 @@ NAN_METHOD(Forward)
 		uv_fileno((uv_handle_t*)handle,&sock1);		
 		sock = dup(sock1);
 #endif
-		TcpSocket* asocket = new TcpSocket(*gIOService);
+		WebServer& webserver = WebServer::Get();
+		TcpSocket* asocket = new TcpSocket(webserver.GetIoService());
 		asio::error_code ec;
 		asocket->assign(asio::ip::tcp::v4(), sock,ec);
 		std::cout << ec.message() << std::endl;
-		gIOService->dispatch([asocket, strData]() {
+		webserver.GetIoService().dispatch([asocket, strData]() {
 			//executed in static-server thread
 
 			HTTPResponse response;
@@ -138,30 +182,10 @@ NAN_METHOD(Forward)
 }
 
 NAN_MODULE_INIT(Init) {
-	gIOService = new asio::io_service();
+	
+	WebServer& webServer = WebServer::Get();
+	webServer.start();
 
-	std::thread asioWorker(launcher, std::ref(*gIOService));
-	
-#if WIN32 && _DEBUG
-	THREADNAME_INFO info;
-	info.dwType = 0x1000;
-	info.szName = "static-server";
-	info.dwThreadID = ::GetThreadId(static_cast<HANDLE>(asioWorker.native_handle()));
-	info.dwFlags = 0;
-#pragma warning(push)  
-#pragma warning(disable: 6320 6322)  
-	
-	try
-	{
-		RaiseException(MS_VC_EXCEPTION, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info);
-	}
-	catch (...)
-	{
-	}
-#pragma warning(pop)  
-#endif
-	asioWorker.detach();
-	
  Nan::Set(target,Nan::New<v8::String>("forward").ToLocalChecked(),Nan::GetFunction(
       Nan::New<v8::FunctionTemplate>(Forward)).ToLocalChecked());
 }
