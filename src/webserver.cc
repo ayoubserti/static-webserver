@@ -2,6 +2,8 @@
 
 #include "node_header.h"
 
+#include "compression.h"
+
 #include <iostream>
 #include <thread>
 #include <functional>
@@ -134,11 +136,19 @@ NAN_METHOD(Forward)
 		sock = dup(sock1);
 #endif
 		WebServer& webserver = WebServer::Get();
+
+		
+
 		TcpSocket* asocket = new TcpSocket(webserver.GetIoService());
+		
+		
 		asio::error_code ec;
 		asocket->assign(asio::ip::tcp::v4(), sock,ec);
-		std::cout << ec.message() << std::endl;
-		webserver.GetIoService().dispatch([asocket, strData]() {
+		
+		
+		AsyncWriteCompressableStream* stream = new AsyncWriteCompressableStream(*asocket);
+		
+		webserver.GetIoService().dispatch([stream,asocket, strData]() {
 			//executed in static-server thread
 
 			HTTPResponse response;
@@ -154,14 +164,16 @@ NAN_METHOD(Forward)
 
 			//send headers sync
 			asocket->send(asio::buffer(response.stringify()));
-			asocket->async_send(asio::buffer(compressed, compsize),
-				[asocket,compressed](const asio::error_code& ec, std::size_t len) {
+			
+			asio::async_write(*stream,asio::buffer(compressed, compsize),
+				[stream,asocket,compressed](const asio::error_code& ec, std::size_t len) {
 				
 				//shutdown socket after write
 				asio::error_code sh_ec;
 				asocket->shutdown(asio::socket_base::shutdown_both,sh_ec);
 				delete asocket;
 				delete compressed;
+				delete stream;
 			});
 
 		});
