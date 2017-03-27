@@ -5,10 +5,6 @@
 #include <iostream>
 #include <thread>
 #include <functional>
-#define  _WIN32_WINNT  0x0601
-#define  ASIO_DISABLE_IOCP 1
-#define  ASIO_STANDALONE 1
-#include "asio.hpp"
 
 
 #include <zconf.h>
@@ -16,21 +12,7 @@
 
 #include <string>
 
-#ifdef _WIN32
-#include "Windows.h"
-const DWORD MS_VC_EXCEPTION = 0x406D1388;
 
-#pragma pack(push,8)
-typedef struct tagTHREADNAME_INFO
-{
-	DWORD dwType; // Must be 0x1000.
-	LPCSTR szName; // Pointer to name (in user addr space).
-	DWORD dwThreadID; // Thread ID (-1=caller thread).
-	DWORD dwFlags; // Reserved for future use, must be zero.
-} THREADNAME_INFO;
-#pragma pack(pop)
-
-#endif
 
 WebServer::WebServer()
 {
@@ -67,28 +49,33 @@ void WebServer::start()
 	{
 		std::thread worker(&WebServer::thread_work,std::ref(*this));
 
-#if WIN32 && _DEBUG
-		THREADNAME_INFO info;
-		info.dwType = 0x1000;
-		info.szName = "static-server";
-		info.dwThreadID = ::GetThreadId(static_cast<HANDLE>(worker.native_handle()));
-		info.dwFlags = 0;
-#pragma warning(push)  
-#pragma warning(disable: 6320 6322)  
-
-		try
-		{
-			RaiseException(MS_VC_EXCEPTION, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info);
-		}
-		catch (...)
-		{
-		}
-#pragma warning(pop)  
-#endif
+		set_thread_name(worker);
 		worker.detach();
 		started_ = true;
 	}
 	
+}
+
+void WebServer::set_thread_name( std::thread& worker)
+{
+#if WIN32 && _DEBUG
+	THREADNAME_INFO info;
+	info.dwType = 0x1000;
+	info.szName = "static-server";
+	info.dwThreadID = ::GetThreadId(static_cast<HANDLE>(worker.native_handle()));
+	info.dwFlags = 0;
+#pragma warning(push)  
+#pragma warning(disable: 6320 6322)  
+
+	try
+	{
+		RaiseException(MS_VC_EXCEPTION, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info);
+	}
+	catch (...)
+	{
+	}
+#pragma warning(pop)  
+#endif
 }
 
 char* compress(const char* in, size_t len,size_t& out) {
