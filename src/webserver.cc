@@ -8,10 +8,6 @@
 #include <thread>
 #include <functional>
 
-
-#include <zconf.h>
-#include <zlib.h>
-
 #include <string>
 
 
@@ -78,29 +74,6 @@ void WebServer::set_thread_name( std::thread& worker)
 	}
 #pragma warning(pop)  
 #endif
-}
-
-char* compress(const char* in, size_t len,size_t& out) {
-
-
-	char* res = new char[out];
-	// zlib struct
-	z_stream defstream;
-	defstream.zalloc = Z_NULL;
-	defstream.zfree = Z_NULL;
-	defstream.opaque = Z_NULL;
-	// setup "a" as the input and "b" as the compressed output
-	defstream.avail_in = len; // size of input, string + terminator
-	defstream.next_in = (Bytef *)in; // input char array
-	defstream.avail_out = out; // size of output
-	defstream.next_out = (Bytef *)res; // output char array
-
-	deflateInit(&defstream, Z_BEST_COMPRESSION);
-	deflate(&defstream, Z_FINISH);
-	deflateEnd(&defstream);
-	out = defstream.total_out;
-	
-	return res;
 }
 
 
