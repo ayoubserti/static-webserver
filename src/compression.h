@@ -13,7 +13,10 @@ class AsyncWriteCompressableStream
 
    io_service& io_service();
    template<typename CB, typename HW>
-   void async_write_some(CB buffer, HW callback);
+   void async_write_some(const CB& buffer, HW callback)
+   {
+	   socket_.async_send(buffer, callback);
+   }
 
 };
 
