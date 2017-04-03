@@ -17,7 +17,7 @@ asio::io_service& AsyncWriteCompressableStream::io_service()
 
 void AsyncWriteCompressableStream::do_compress(const char* in, size_t len, char* out, size_t& out_len){
 
-
+	
 	// zlib struct
 	z_stream defstream;
 	defstream.zalloc = Z_NULL;
@@ -29,8 +29,17 @@ void AsyncWriteCompressableStream::do_compress(const char* in, size_t len, char*
 	defstream.next_out = (Bytef *)out; 
 
 	deflateInit(&defstream, Z_BEST_COMPRESSION);
-	deflate(&defstream, Z_FINISH);
-	deflateEnd(&defstream);
-	out_len = defstream.total_out;
+	if (deflate(&defstream, Z_FINISH) == Z_STREAM_END)
+	{
+		deflateEnd(&defstream);
+		out_len = defstream.total_out;
+
+	}
+	else
+	{
+		//error or need more out buf
+		out_len = deflateBound(&defstream, len);
+		deflateEnd(&defstream);
+	}
 
 }

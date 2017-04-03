@@ -131,14 +131,13 @@ NAN_METHOD(Forward)
 			response.set_header("Content-Encoding", "deflate");
 
 			size_t compsize = strData->size() * (1.5);
-			char * compressed = compress(strData->c_str(), strData->size(), compsize);
-
 			response.set_header("Content-Lenght", compsize);
 
 			//send headers sync
 			asocket->send(asio::buffer(response.stringify()));
+
 			
-			asio::async_write(*stream,asio::buffer(compressed, compsize),
+/*			asio::async_write(*stream,asio::buffer(compressed, compsize),
 				[stream,asocket,compressed](const asio::error_code& ec, std::size_t len) {
 				
 				//shutdown socket after write
@@ -148,7 +147,7 @@ NAN_METHOD(Forward)
 				delete compressed;
 				delete stream;
 			});
-
+			*/
 		});
 	}
 }
