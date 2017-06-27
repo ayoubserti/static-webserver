@@ -131,58 +131,25 @@ NAN_METHOD(Forward)
 			std::shared_ptr<HTTPResponse> response(new HTTPResponse());
 			response->set_header("Content-Type", "text/plain");
 			response->set_status(HTTP_STATUS_OK);
-			response->set_header("Connection", "Keep-alive");
-			//response->set_header("Date", "Tue, 27 Jun 2017 01:27:37 GMT");
-			//response->set_header("Content-Encoding", "deflate");
+			response->set_header("Connection", "Close");
 			response->append_body(strData->c_str(), strData->size());
+			delete strData;
 
-			auto Completion = [](std::error_code& err, size_t len) -> void {
+			send(response,true, [&](const char* buf, size_t len) {
+				Sender(asocket, buf, len, [&](const asio::error_code& err, std::size_t len) {
 
-
-			};
-
-			
-			
-			//std::function<void(const char* buf, size_t len)> Sender
-			response->send(response,true, strData->c_str(), strData->size(), [&](const char* buf, size_t len) {
-				Sender(asocket, buf, len, [](const asio::error_code& err, std::size_t len) {
-
-					if (!err)
-					{
-						std::cout << "size sent " << len << std::endl;
-					}
-					else
-					{
-						std::cout << err.message() << std::endl;
-					}
+					//check if every thing was sent
+					
 				});
-			}, [](std::shared_ptr<HTTPResponse>,const std::error_code& ec, size_t len) {
+			}, [&](std::shared_ptr<HTTPResponse>,const std::error_code& ec, size_t len) {
 
-				std::cout << "Finished" << std::endl;
+				//May cache HTTPResponse, or log ELF 
+				if (!ec)
+				{
+					
+				}
 			});
 
-			//size_t compsize = strData->size() * (1.5);
-			
-
-			//response->set_header("Content-Lenght", compsize);
-
-			//send headers sync
-			//asocket->send(asio::buffer(response.stringify()));
-			
-
-
-			
-/*			asio::async_write(*stream,asio::buffer(compressed, compsize),
-				[stream,asocket,compressed](const asio::error_code& ec, std::size_t len) {
-				
-				//shutdown socket after write
-				asio::error_code sh_ec;
-				asocket->shutdown(asio::socket_base::shutdown_both,sh_ec);
-				delete asocket;
-				delete compressed;
-				delete stream;
-			});
-			*/
 		});
 	}
 }

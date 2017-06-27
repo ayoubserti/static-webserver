@@ -54,8 +54,13 @@ private:
 	char*		body_ =nullptr;
 	std::size_t body_length;
 	eCompressionMethod compression_method_ = eCompressionMethod::eCompressionNone;
-	/*friend
-	void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const function<size_t(const char*, size_t, char*, size_t&)>&& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation);*/
+	friend
+	void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const function<size_t(const char*, size_t, char*, size_t&)>&& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation);
+
+	//Send packet
+	friend
+	void send(std::shared_ptr<HTTPResponse> res, bool sendHeader, const function<void(const char*, size_t)>&& Sender, const function<void(std::shared_ptr<HTTPResponse>response, const std::error_code&, size_t len)>&& Compelation);
+
 
 public:
 
@@ -109,11 +114,14 @@ public:
 			::free(body_);
 	}
 	
-	void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const function<size_t(const char*, size_t, char*, size_t&)>&& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation);
+
+	size_t get_body_length() { return body_length; }
+
+	const char* get_body() { return body_; }
+
 	
-
-
-	//Send packet
-	void send(std::shared_ptr<HTTPResponse> res, bool sendHeader, const char* buf, size_t len, const function<void(const char*, size_t)>&& Sender, const function<void(std::shared_ptr<HTTPResponse>response, const std::error_code&, size_t len)>&& Compelation);
 	
 };
+void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const function<size_t(const char*, size_t, char*, size_t&)>&& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation);
+
+void send(std::shared_ptr<HTTPResponse> res, bool sendHeader, const function<void(const char*, size_t)>&& Sender, const function<void(std::shared_ptr<HTTPResponse>response, const std::error_code&, size_t len)>&& Compelation);
