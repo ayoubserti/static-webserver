@@ -50,8 +50,6 @@ class WebServer
 
 	static void thread_work(WebServer&);
 
-	
-
 	void set_thread_name( std::thread& worker);
 public:
 

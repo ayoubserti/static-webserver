@@ -76,6 +76,10 @@ void WebServer::set_thread_name( std::thread& worker)
 #endif
 }
 
+static void Sender(TcpSocket* socket, const char* buf, size_t len, function<void(const asio::error_code&, std::size_t)> WriteHandler) {
+	socket->async_send(asio::buffer(buf, len), WriteHandler);
+};
+
 
 NAN_METHOD(Forward)
 {
@@ -119,22 +123,53 @@ NAN_METHOD(Forward)
 		asocket->assign(asio::ip::tcp::v4(), sock,ec);
 		
 		
-		AsyncWriteCompressableStream* stream = new AsyncWriteCompressableStream(*asocket);
 		
-		webserver.GetIoService().dispatch([stream,asocket, strData]() {
+		
+		webserver.GetIoService().dispatch([asocket, strData]() {
 			//executed in static-server thread
 
-			HTTPResponse response;
-			response.set_header("Content-Type", "text/plain");
-			response.set_status(HTTP_STATUS_OK);
-			response.set_header("Connection", "Closed");
-			response.set_header("Content-Encoding", "deflate");
+			std::shared_ptr<HTTPResponse> response(new HTTPResponse());
+			response->set_header("Content-Type", "text/plain");
+			response->set_status(HTTP_STATUS_OK);
+			response->set_header("Connection", "Keep-alive");
+			//response->set_header("Date", "Tue, 27 Jun 2017 01:27:37 GMT");
+			//response->set_header("Content-Encoding", "deflate");
+			response->append_body(strData->c_str(), strData->size());
 
-			size_t compsize = strData->size() * (1.5);
-			response.set_header("Content-Lenght", compsize);
+			auto Completion = [](std::error_code& err, size_t len) -> void {
+
+
+			};
+
+			
+			
+			//std::function<void(const char* buf, size_t len)> Sender
+			response->send(response,true, strData->c_str(), strData->size(), [&](const char* buf, size_t len) {
+				Sender(asocket, buf, len, [](const asio::error_code& err, std::size_t len) {
+
+					if (!err)
+					{
+						std::cout << "size sent " << len << std::endl;
+					}
+					else
+					{
+						std::cout << err.message() << std::endl;
+					}
+				});
+			}, [](std::shared_ptr<HTTPResponse>,const std::error_code& ec, size_t len) {
+
+				std::cout << "Finished" << std::endl;
+			});
+
+			//size_t compsize = strData->size() * (1.5);
+			
+
+			//response->set_header("Content-Lenght", compsize);
 
 			//send headers sync
-			asocket->send(asio::buffer(response.stringify()));
+			//asocket->send(asio::buffer(response.stringify()));
+			
+
 
 			
 /*			asio::async_write(*stream,asio::buffer(compressed, compsize),

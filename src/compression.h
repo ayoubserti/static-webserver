@@ -7,12 +7,14 @@
 
 #define MAX_CHUNK_SIZE 1024
 
+size_t guess_compressed_length(const char* buf, size_t len);
+
 class AsyncWriteCompressableStream 
 {
    AsyncWriteCompressableStream( AsyncWriteCompressableStream& )  = delete;
    TcpSocket& socket_;
 
-   void do_compress(const char* in, size_t len, char* out, size_t& out_len);
+   bool  do_compress(const char* in, size_t len, char* out, size_t& out_len);
 
    char  flate_buf_[MAX_CHUNK_SIZE];
 
@@ -30,10 +32,30 @@ class AsyncWriteCompressableStream
 	   // todo: add compile time check, if really a ConstBufferSequence
 	   typedef const_iterator typename CB::const_iterator;
 	   
-	   //chuncking data by MAX_CHUNK_SIZE
-
 	   size_t chunck_size = std::distance(buffer.begin(), buffer.end());
 	   
+	   if (chunck_size <= 0) return;  // maybe trigger callback
+	   char* lout_buf = (char*)::malloc(chunck_size);
+	   
+	   char* lflat_buf = (char*)::malloc(guess_compressed_length);
+	   
+	   std::copy(buffer.begin(), buffer.end(), lflat_buf);
+	   size_t guessed_len = guess_compressed_length(lflat_buf, chunck_size);
+	   
+	   if (do_compress(lflat_buf, chunck_size, lout_buf, guessed_len))
+	   {
+		   socket_.async_send(asio::buffer(lout_buf, len), [lout_buf,lflat_buf,&callback](const asio::error_code& ec, std::size_t write_len) {
+			   if (!ec)
+			   {
+				   callback();
+			   }
+			   ::free(lout_buf);
+			   ::free(lflat_buf);
+		   });
+	   }
+
+
+
 	   if (chunck_size <= MAX_CHUNK_SIZE)
 	   {
 		   //one single chunck
@@ -84,7 +106,11 @@ class AsyncWriteCompressableStream
 	   socket_.async_send(buffer, callback);
    }
 
+   
+
 };
+
+ 
 
 
 

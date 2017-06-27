@@ -6,11 +6,16 @@
 #pragma once
 #include <string>
 #include <unordered_map>
+#include <functional>
+#include <memory>
+#include <list>
 #include "http_parser.h"
+
 
 using std::string;
 using std::unordered_map;
-
+using std::function;
+using std::list;
 
 
 struct http_status_stingifier
@@ -29,11 +34,18 @@ static http_status_stingifier all_http_status[] = {
 /*
     @abstract  Reponse represent an Http response; basically this class is helps serializing Http Response
 */
-class HTTPResponse 
+class HTTPResponse : std::enable_shared_from_this<HTTPResponse>
 {
     
 public:
 	typedef unordered_map<string, string> HeadersMap;
+	enum class eCompressionMethod {
+		eCompressionNone = 0,
+		eCompressionDeflate,
+		eCompressionGzip,
+
+		eCompressionUnknown = -1
+	};
 private:
 
 	http_status status_;
@@ -41,6 +53,9 @@ private:
 	HeadersMap	headers_;
 	char*		body_ =nullptr;
 	std::size_t body_length;
+	eCompressionMethod compression_method_ = eCompressionMethod::eCompressionNone;
+	/*friend
+	void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const function<size_t(const char*, size_t, char*, size_t&)>&& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation);*/
 
 public:
 
@@ -85,6 +100,7 @@ public:
 	void append_body(const char* buf, size_t len)
 	{
 		body_ = reinterpret_cast<char*>(::malloc(len));
+		memcpy(body_, buf, len);
 		body_length = len;
 	}
 
@@ -92,5 +108,12 @@ public:
 		if (body_ != nullptr)
 			::free(body_);
 	}
+	
+	void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const function<size_t(const char*, size_t, char*, size_t&)>&& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation);
+	
+
+
+	//Send packet
+	void send(std::shared_ptr<HTTPResponse> res, bool sendHeader, const char* buf, size_t len, const function<void(const char*, size_t)>&& Sender, const function<void(std::shared_ptr<HTTPResponse>response, const std::error_code&, size_t len)>&& Compelation);
 	
 };
