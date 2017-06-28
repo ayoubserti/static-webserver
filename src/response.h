@@ -62,6 +62,8 @@ private:
 	void send(std::shared_ptr<HTTPResponse> res, bool sendHeader, const function<void(const char*, size_t)>&& Sender, const function<void(std::shared_ptr<HTTPResponse>response, const std::error_code&, size_t len)>&& Compelation);
 
 
+	size_t sending_size_ = 0;
+
 public:
 
 	string stringify()
@@ -119,6 +121,11 @@ public:
 
 	const char* get_body() { return body_; }
 
+	void inc_sending_size(size_t s) { sending_size_ += s; }
+
+	void dec_sending_size(size_t s) { sending_size_ -= s; }
+
+	size_t get_sending_size() { return sending_size_; }
 	
 	
 };

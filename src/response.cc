@@ -31,7 +31,7 @@ void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len
 
 void send(std::shared_ptr<HTTPResponse> res, bool sendHeader, const function<void(const char*, size_t)>&& Sender, const function<void(std::shared_ptr<HTTPResponse>response, const std::error_code&, size_t len)>&& Compelation)
 {
-
+	
 	{
 		char* buffer = nullptr;
 		size_t total_len;
@@ -43,15 +43,20 @@ void send(std::shared_ptr<HTTPResponse> res, bool sendHeader, const function<voi
 
 		};
 		compress_body(res, buffer, total_len, std::move(dummy_compressor), [&](std::shared_ptr<HTTPResponse> response, const char* buf_to_send, size_t len_buf_to_send) {
+
+			
 			if (sendHeader)
 			{
 				string* headersStr = new string(response->stringify());
 
 				Sender(headersStr->c_str(), headersStr->size());
+				
+				res->inc_sending_size(headersStr->size());
 
 				//mem leaked
 			}
 			Sender(buffer, total_len);
+			res->inc_sending_size(total_len);
 			std::error_code ec;
 			Compelation(response, ec, total_len);
 		});

@@ -76,10 +76,6 @@ void WebServer::set_thread_name( std::thread& worker)
 #endif
 }
 
-static void Sender(TcpSocket* socket, const char* buf, size_t len, function<void(const asio::error_code&, std::size_t)> WriteHandler) {
-	socket->async_send(asio::buffer(buf, len), WriteHandler);
-};
-
 
 NAN_METHOD(Forward)
 {
@@ -135,11 +131,27 @@ NAN_METHOD(Forward)
 			response->append_body(strData->c_str(), strData->size());
 			delete strData;
 
+			auto Sender = [](TcpSocket* socket, const char* buf, size_t len, function<void(const asio::error_code&, std::size_t)> WriteHandler) {
+				socket->async_send(asio::buffer(buf, len), WriteHandler);
+			};
+
+
 			send(response,true, [&](const char* buf, size_t len) {
-				Sender(asocket, buf, len, [&](const asio::error_code& err, std::size_t len) {
+				Sender(asocket, buf, len, [=](const asio::error_code& err, std::size_t len) {
 
 					//check if every thing was sent
+					response->dec_sending_size(len);
+					if (response->get_sending_size() == 0)
+					{
+						asio::error_code sh_ec;
+						asocket->shutdown(asio::socket_base::shutdown_both, sh_ec);
+						
+						delete asocket;
+						
+					}
 					
+
+					// buf keep stored 
 				});
 			}, [&](std::shared_ptr<HTTPResponse>,const std::error_code& ec, size_t len) {
 
