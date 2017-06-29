@@ -52,14 +52,17 @@ private:
 	string		status_str_;
 	HeadersMap	headers_;
 	char*		body_ =nullptr;
-	std::size_t body_length;
+	std::size_t body_length =0;
+	char*		compressed_body_ = nullptr;
+	size_t		compressed_body_length_ = 0;
+
 	eCompressionMethod compression_method_ = eCompressionMethod::eCompressionNone;
 	friend
 	void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const function<size_t(const char*, size_t, char*, size_t&)>&& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation);
 
 	//Send packet
 	friend
-	void send(std::shared_ptr<HTTPResponse> res, bool sendHeader, const function<void(const char*, size_t)>&& Sender, const function<void(std::shared_ptr<HTTPResponse>response, const std::error_code&, size_t len)>&& Compelation);
+	void send_reponse(std::shared_ptr<HTTPResponse> res, bool sendHeader,  function<void(const char*, size_t)>&& Sender, const function<void(std::shared_ptr<HTTPResponse>response, const std::error_code&, size_t len)>&& Compelation);
 
 
 	size_t sending_size_ = 0;
@@ -111,9 +114,28 @@ public:
 		body_length = len;
 	}
 
+	void clear_body()
+	{
+		if (body_ != nullptr)
+			std::free(body_);
+		body_ = nullptr;
+		body_length = 0;
+
+	}
+
+	void clear_compressed_body()
+	{
+		if (compressed_body_ != nullptr)
+			std::free(compressed_body_);
+		compressed_body_ = nullptr;
+		compressed_body_length_ = 0;
+	}
+
 	~HTTPResponse(){
 		if (body_ != nullptr)
 			::free(body_);
+		if (compressed_body_ != nullptr)
+			::free(compressed_body_);
 	}
 	
 
@@ -131,4 +153,4 @@ public:
 };
 void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const function<size_t(const char*, size_t, char*, size_t&)>&& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation);
 
-void send(std::shared_ptr<HTTPResponse> res, bool sendHeader, const function<void(const char*, size_t)>&& Sender, const function<void(std::shared_ptr<HTTPResponse>response, const std::error_code&, size_t len)>&& Compelation);
+void send_reponse(std::shared_ptr<HTTPResponse> res, bool sendHeader,  function<void(const char*, size_t)>&& Sender, const function<void(std::shared_ptr<HTTPResponse>response, const std::error_code&, size_t len)>&& Compelation);

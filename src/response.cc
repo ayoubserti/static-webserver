@@ -23,13 +23,15 @@ void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len
 		}
 
 		res->set_header("Content-Length", total_len);
+		res->compressed_body_ = outBuf;
+		res->compressed_body_length_ = total_len;
 		Compelation(res, outBuf, total_len);
 
 
 	}
 }
 
-void send(std::shared_ptr<HTTPResponse> res, bool sendHeader, const function<void(const char*, size_t)>&& Sender, const function<void(std::shared_ptr<HTTPResponse>response, const std::error_code&, size_t len)>&& Compelation)
+void send_reponse(std::shared_ptr<HTTPResponse> res, bool sendHeader,  function<void(const char*, size_t)>&& Sender, const function<void(std::shared_ptr<HTTPResponse>response, const std::error_code&, size_t len)>&& Compelation)
 {
 	
 	{

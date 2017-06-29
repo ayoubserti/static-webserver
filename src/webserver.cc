@@ -131,29 +131,38 @@ NAN_METHOD(Forward)
 			response->append_body(strData->c_str(), strData->size());
 			delete strData;
 
-			auto Sender = [](TcpSocket* socket, const char* buf, size_t len, function<void(const asio::error_code&, std::size_t)> WriteHandler) {
+			auto Sender = [](TcpSocket* socket, const char* buf, size_t len, function<void(const asio::error_code&, std::size_t)>&& WriteHandler) {
 				socket->async_send(asio::buffer(buf, len), WriteHandler);
 			};
 
 
-			send(response,true, [&](const char* buf, size_t len) {
-				Sender(asocket, buf, len, [=](const asio::error_code& err, std::size_t len) {
+			auto HandlerWriter = [](std::shared_ptr<HTTPResponse> response , TcpSocket* socket, const asio::error_code& err, std::size_t len) {
 
-					//check if every thing was sent
-					response->dec_sending_size(len);
-					if (response->get_sending_size() == 0)
-					{
-						asio::error_code sh_ec;
-						asocket->shutdown(asio::socket_base::shutdown_both, sh_ec);
-						
-						delete asocket;
-						
-					}
-					
+				//check if every thing was sent
+				response->dec_sending_size(len);
+				if (response->get_sending_size() == 0)
+				{
+					asio::error_code sh_ec;
+					socket->shutdown(asio::socket_base::shutdown_both, sh_ec);
 
-					// buf keep stored 
-				});
-			}, [&](std::shared_ptr<HTTPResponse>,const std::error_code& ec, size_t len) {
+					delete socket;
+
+					//clear body and compressed body
+					response->clear_body();
+					response->clear_compressed_body();
+
+				}
+
+
+				// buf keep stored 
+			};
+
+			function<void(const asio::error_code&,std::size_t len)> simplified_handlewriter = std::bind(HandlerWriter, response, asocket, std::placeholders::_1, std::placeholders::_2);
+			function<void(const char*, size_t)> Send_simplified = std::bind(Sender, asocket, std::placeholders::_1, std::placeholders::_2, [func = std::move(simplified_handlewriter)](const asio::error_code& err, std::size_t len)mutable {
+				func(err, len);
+			});
+			send_reponse(response,true,  std::move(Send_simplified)	,
+				[&](std::shared_ptr<HTTPResponse>,const std::error_code& ec, size_t len) {
 
 				//May cache HTTPResponse, or log ELF 
 				if (!ec)
