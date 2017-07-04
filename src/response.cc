@@ -49,11 +49,11 @@ void send_reponse(std::shared_ptr<HTTPResponse> res, bool sendHeader,  function<
 			
 			if (sendHeader)
 			{
-				string* headersStr = new string(response->stringify());
-
-				Sender(headersStr->c_str(), headersStr->size());
+				response->stringify();
 				
-				res->inc_sending_size(headersStr->size());
+				Sender(response->stringified_headers_, response->stringified_headers_len_);
+				
+				res->inc_sending_size(response->stringified_headers_len_);
 
 				//mem leaked
 			}

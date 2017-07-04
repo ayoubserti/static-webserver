@@ -10,6 +10,35 @@
 
 #include <string>
 
+template<typename T>
+struct protect_wrapper : T
+{
+	protect_wrapper(const T& t) : T(t)
+	{
+
+	}
+
+	protect_wrapper(T&& t) : T(std::move(t))
+	{
+
+	}
+};
+
+template<typename T>
+typename std::enable_if< !std::is_bind_expression< typename std::decay<T>::type >::value,
+	T&& >::type
+	protect(T&& t)
+{
+	return std::forward<T>(t);
+}
+
+template<typename T>
+typename std::enable_if< std::is_bind_expression< typename std::decay<T>::type >::value,
+	protect_wrapper<typename std::decay<T>::type > >::type
+	protect(T&& t)
+{
+	return protect_wrapper<typename std::decay<T>::type >(std::forward<T>(t));
+}
 
 
 WebServer::WebServer()
@@ -88,7 +117,7 @@ NAN_METHOD(Forward)
 
 		v8::String::Utf8Value utfData(data);
 		//i know `std::string*` is a bad idea ;(
-		std::string* strData = new std::string(*utfData, utfData.length());
+		std::shared_ptr<std::string> strData(new std::string(*utfData, utfData.length()));
 
 		node::TCPWrap * mirror = reinterpret_cast<node::TCPWrap *>(Nan::GetInternalFieldPointer(obj, 0));
 
@@ -129,9 +158,8 @@ NAN_METHOD(Forward)
 			response->set_status(HTTP_STATUS_OK);
 			response->set_header("Connection", "Close");
 			response->append_body(strData->c_str(), strData->size());
-			delete strData;
-
-			auto Sender = [](TcpSocket* socket, const char* buf, size_t len, function<void(const asio::error_code&, std::size_t)>&& WriteHandler) {
+			
+			auto Sender = [](TcpSocket* socket, const char* buf, size_t len, function<void(const asio::error_code&, std::size_t)>& WriteHandler) {
 				socket->async_send(asio::buffer(buf, len), WriteHandler);
 			};
 
@@ -158,9 +186,7 @@ NAN_METHOD(Forward)
 			};
 
 			function<void(const asio::error_code&,std::size_t len)> simplified_handlewriter = std::bind(HandlerWriter, response, asocket, std::placeholders::_1, std::placeholders::_2);
-			function<void(const char*, size_t)> Send_simplified = std::bind(Sender, asocket, std::placeholders::_1, std::placeholders::_2, [func = std::move(simplified_handlewriter)](const asio::error_code& err, std::size_t len)mutable {
-				func(err, len);
-			});
+			auto Send_simplified = std::bind(Sender, asocket, std::placeholders::_1, std::placeholders::_2, std::ref(simplified_handlewriter));
 			send_reponse(response,true,  std::move(Send_simplified)	,
 				[&](std::shared_ptr<HTTPResponse>,const std::error_code& ec, size_t len) {
 

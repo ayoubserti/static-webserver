@@ -55,7 +55,7 @@ private:
 	std::size_t body_length =0;
 	char*		compressed_body_ = nullptr;
 	size_t		compressed_body_length_ = 0;
-
+    
 	eCompressionMethod compression_method_ = eCompressionMethod::eCompressionNone;
 	friend
 	void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const function<size_t(const char*, size_t, char*, size_t&)>&& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation);
@@ -69,6 +69,9 @@ private:
 
 public:
 
+	char*		stringified_headers_ = nullptr;
+	size_t		stringified_headers_len_ = 0;
+
 	string stringify()
 	{
 		string result{"HTTP/1.1 "};
@@ -79,6 +82,11 @@ public:
 			result += i.first + ": " + i.second + "\n";
 		}
 		result += "\n";
+		if (stringified_headers_) ::free(stringified_headers_);
+		stringified_headers_len_ = result.size();
+		stringified_headers_ = (char*)::malloc(stringified_headers_len_);
+		::memcpy(stringified_headers_, result.c_str(), stringified_headers_len_);
+		
 		return result;
 	}
 
@@ -136,6 +144,8 @@ public:
 			::free(body_);
 		if (compressed_body_ != nullptr)
 			::free(compressed_body_);
+		
+		::free(stringified_headers_);
 	}
 	
 
