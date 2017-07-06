@@ -31,6 +31,9 @@ static http_status_stingifier all_http_status[] = {
 
 };
 
+
+typedef  function<size_t(const char*, size_t, char*, size_t&)> CompressorFunction;
+
 /*
     @abstract  Reponse represent an Http response; basically this class is helps serializing Http Response
 */
@@ -55,10 +58,14 @@ private:
 	std::size_t body_length =0;
 	char*		compressed_body_ = nullptr;
 	size_t		compressed_body_length_ = 0;
+
+
+	CompressorFunction compressor_;
+
     
 	eCompressionMethod compression_method_ = eCompressionMethod::eCompressionNone;
 	friend
-	void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const function<size_t(const char*, size_t, char*, size_t&)>&& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation);
+	void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const CompressorFunction& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation);
 
 	//Send packet
 	friend
@@ -158,9 +165,11 @@ public:
 	void dec_sending_size(size_t s) { sending_size_ -= s; }
 
 	size_t get_sending_size() { return sending_size_; }
+
+	void   set_compressor(CompressorFunction&& func) { compressor_ = func; }
 	
 	
 };
-void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const function<size_t(const char*, size_t, char*, size_t&)>&& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation);
+void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const CompressorFunction& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation);
 
 void send_reponse(std::shared_ptr<HTTPResponse> res, bool sendHeader,  function<void(const char*, size_t)>&& Sender, const function<void(std::shared_ptr<HTTPResponse>response, const std::error_code&, size_t len)>&& Compelation);

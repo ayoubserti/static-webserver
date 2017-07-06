@@ -1,6 +1,6 @@
 #include "response.h"
 
-void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const function<size_t(const char*, size_t, char*, size_t&)>&& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation)
+void compress_body(std::shared_ptr<HTTPResponse> res, char*& outBuf, size_t& len, const CompressorFunction& Compressor, const function<void(std::shared_ptr<HTTPResponse>, const char*, size_t)>&& Compelation)
 {
 	if (res->body_ != nullptr)
 	{
@@ -37,14 +37,8 @@ void send_reponse(std::shared_ptr<HTTPResponse> res, bool sendHeader,  function<
 	{
 		char* buffer = nullptr;
 		size_t total_len;
-		const auto dummy_compressor = [&](const char* raw_buf, size_t raw_buf_size, char* outBuf, size_t& outLen)->size_t {
-			//compressor dummy
-			memcpy(outBuf, raw_buf, raw_buf_size);
-			outLen = raw_buf_size;
-			return 0;
-
-		};
-		compress_body(res, buffer, total_len, std::move(dummy_compressor), [&](std::shared_ptr<HTTPResponse> response, const char* buf_to_send, size_t len_buf_to_send) {
+		
+		compress_body(res, buffer, total_len, res->compressor_, [&](std::shared_ptr<HTTPResponse> response, const char* buf_to_send, size_t len_buf_to_send) {
 
 			
 			if (sendHeader)
@@ -55,7 +49,6 @@ void send_reponse(std::shared_ptr<HTTPResponse> res, bool sendHeader,  function<
 				
 				res->inc_sending_size(response->stringified_headers_len_);
 
-				//mem leaked
 			}
 			Sender(buffer, total_len);
 			res->inc_sending_size(total_len);

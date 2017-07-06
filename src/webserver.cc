@@ -116,7 +116,7 @@ NAN_METHOD(Forward)
 		v8::Local<v8::String> data = Nan::To< v8::String>(info[1]).ToLocalChecked();
 
 		v8::String::Utf8Value utfData(data);
-		//i know `std::string*` is a bad idea ;(
+		
 		std::shared_ptr<std::string> strData(new std::string(*utfData, utfData.length()));
 
 		node::TCPWrap * mirror = reinterpret_cast<node::TCPWrap *>(Nan::GetInternalFieldPointer(obj, 0));
@@ -155,9 +155,47 @@ NAN_METHOD(Forward)
 
 			std::shared_ptr<HTTPResponse> response(new HTTPResponse());
 			response->set_header("Content-Type", "text/plain");
+			response->set_header("Content-Encoding", "deflate");
 			response->set_status(HTTP_STATUS_OK);
 			response->set_header("Connection", "Close");
 			response->append_body(strData->c_str(), strData->size());
+
+
+			 auto dummy_compressor = [](const char* raw_buf, size_t raw_buf_size, char* outBuf, size_t& outLen)->size_t {
+				//compressor dummy
+				//memcpy(outBuf, raw_buf, raw_buf_size);
+				//outLen = raw_buf_size;
+				//return 0;
+
+				// zlib struct
+				z_stream defstream;
+				defstream.zalloc = Z_NULL;
+				defstream.zfree = Z_NULL;
+				defstream.opaque = Z_NULL;
+				defstream.avail_in = raw_buf_size;
+				defstream.next_in = (Bytef *)raw_buf;
+				defstream.avail_out = outLen;
+				defstream.next_out = (Bytef *)outBuf;
+
+				deflateInit(&defstream, Z_BEST_COMPRESSION);
+				if (deflate(&defstream, Z_FINISH) == Z_STREAM_END)
+				{
+					deflateEnd(&defstream);
+					outLen = defstream.total_out;
+					return 0;
+
+				}
+				else
+				{
+					//error or need more out buf
+					outLen = deflateBound(&defstream, raw_buf_size);
+					deflateEnd(&defstream);
+					return 0;
+				}
+
+			};
+
+			 response->set_compressor(dummy_compressor);
 			
 			auto Sender = [](TcpSocket* socket, const char* buf, size_t len, function<void(const asio::error_code&, std::size_t)>& WriteHandler) {
 				socket->async_send(asio::buffer(buf, len), WriteHandler);
@@ -181,8 +219,6 @@ NAN_METHOD(Forward)
 
 				}
 
-
-				// buf keep stored 
 			};
 
 			function<void(const asio::error_code&,std::size_t len)> simplified_handlewriter = std::bind(HandlerWriter, response, asocket, std::placeholders::_1, std::placeholders::_2);
