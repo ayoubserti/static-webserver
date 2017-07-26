@@ -41,6 +41,16 @@ typename std::enable_if< std::is_bind_expression< typename std::decay<T>::type >
 }
 
 
+struct LenBuffer : public std::enable_shared_from_this<LenBuffer>
+{
+	char* buf_;
+	size_t len_;
+
+	LenBuffer(char* buf, size_t len) :
+		buf_(buf),len_(len){}
+};
+
+
 WebServer::WebServer()
 {
 	
@@ -113,14 +123,26 @@ NAN_METHOD(Forward)
 	{
 		v8::Local<v8::Object> obj = Nan::To<v8::Object>(info[0]).ToLocalChecked();
 		
-		v8::Local<v8::String> data = Nan::To< v8::String>(info[1]).ToLocalChecked();
+		//v8::Local<v8::String> data = Nan::To< v8::String>(info[1]).ToLocalChecked();
 
-		v8::String::Utf8Value utfData(data);
+		//v8::String::Utf8Value utfData(data);
 		
-		std::shared_ptr<std::string> strData(new std::string(*utfData, utfData.length()));
+		if (!info[1]->IsObject()) {
+			
+			return;
+		}
+		auto buf = node::Buffer::Data(info[1]->ToObject());
+		auto len = info[2]->ToInt32()->Value();
+		auto lenbuf = std::make_shared<LenBuffer>(buf, len);
+
+
+		//std::shared_ptr<std::string> strData(new std::string(*utfData, utfData.length()));
 
 		node::TCPWrap * mirror = reinterpret_cast<node::TCPWrap *>(Nan::GetInternalFieldPointer(obj, 0));
 
+		/*
+			a not exposed function. 
+		*/
 		uv_tcp_t* handle = mirror->UVHandle();
 		
 		TcpSocket::native_handle_type sock;
@@ -150,7 +172,7 @@ NAN_METHOD(Forward)
 		
 		
 		
-		webserver.GetIoService().dispatch([asocket, strData]() {
+		webserver.GetIoService().dispatch([asocket, lenbuf]() {
 			//executed in static-server thread
 
 			std::shared_ptr<HTTPResponse> response(new HTTPResponse());
@@ -158,7 +180,7 @@ NAN_METHOD(Forward)
 			response->set_header("Content-Encoding", "deflate");
 			response->set_status(HTTP_STATUS_OK);
 			response->set_header("Connection", "Close");
-			response->append_body(strData->c_str(), strData->size());
+			response->append_body(lenbuf->buf_, lenbuf->len_);
 
 
 			 auto dummy_compressor = [](const char* raw_buf, size_t raw_buf_size, char* outBuf, size_t& outLen)->size_t {
